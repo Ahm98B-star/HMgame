@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Hangman (Local Session)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Tajawal:wght@400;500;700&display=swap');
+
+        :root {
+            --bg-color: #0f111a;
+            --card-bg: rgba(30, 33, 48, 0.75);
+            --text-main: #edf2f7;
+            --text-muted: #a0aec0;
+            --primary: #667eea;
+            --primary-hover: #764ba2;
+            --success: #38b259;
+            --danger: #e53e3e;
+            --border-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-color);
+            background-image: radial-gradient(circle at top right, rgba(102, 126, 234, 0.1), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(118, 75, 162, 0.1), transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        html[dir="rtl"] body {
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        .lang-toggle-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+        
+        html[dir="rtl"] .lang-toggle-container {
+            right: auto;
+            left: 20px;
+        }
+
+        .lang-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+        .lang-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .screen, .modal-overlay {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .screen.active, .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Container Layouts */
+        .full-center {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        h1, h2, h3 { margin-bottom: 10px; font-weight: 800; }
+        p { color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
+        
+        .game-title {
+            font-size: 2.5rem;
+            background: -webkit-linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        .length-selector {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 20px 0 30px 0;
+        }
+
+        .len-btn {
+            aspect-ratio: 1;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .len-btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+        .len-btn.selected {
+            background: var(--primary);
+            border-color: var(--primary-hover);
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn {
+            padding: 14px 28px;
+            font-family: inherit;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5); transform: translateY(-2px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
+        
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        .game-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 20px;
+            padding: 0 20px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .wrong-counter span#wrong-count { color: var(--danger); font-size: 1.2rem; }
+
+        .svg-container { margin: 20px 0; height: 180px; position: relative; }
+        .hangman-svg { height: 100%; stroke: var(--text-main); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .body-part { opacity: 0; transition: opacity 0.5s ease; stroke: var(--danger); }
+        .body-part.visible { opacity: 1; }
+
+        .word-display {
+            display: flex;
+            gap: 15px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+            min-height: 60px;
+            direction: inherit; /* Inherit the html dir logic so blanks fill properly */
+        }
+
+        .dash {
+            width: 45px;
+            height: 55px;
+            border-bottom: 4px solid var(--primary);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .dash.filled {
+            border-bottom-color: var(--success);
+            transform: scale(1.1);
+            color: var(--success);
+        }
+
+        .keyboard {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            max-width: 450px;
+            margin: 20px auto;
+            direction: ltr; /* keep grid structure consistent, but letters adapt */
+        }
+        
+        html[dir="rtl"] .keyboard {
+            grid-template-columns: repeat(7, 1fr);
+            max-width: 500px;
+            direction: rtl;
+        }
+
+        .key {
+            aspect-ratio: 1;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .key:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); transform: translateY(-2px); }
+        .key.correct { background: rgba(56, 178, 89, 0.2); border-color: var(--success); color: var(--success); }
+        .key.wrong { background: rgba(229, 62, 62, 0.2); border-color: var(--danger); color: var(--danger); opacity: 0.6; }
+        .key:disabled { cursor: not-allowed; transform: none; }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .position-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .pos-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.2);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+
+        .pos-btn.selected {
+            background: var(--primary);
+            border-color: var(--primary-hover);
+            transform: scale(1.1);
+        }
+
+        .pos-btn:disabled {
+            background: rgba(56, 178, 89, 0.1);
+            border-color: rgba(56, 178, 89, 0.3);
+            color: rgba(255,255,255,0.4);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .modal-actions { display: flex; gap: 15px; justify-content: center; margin-top: 30px; }
+        .modal-actions .btn { flex: 1; }
+
+        .confetti {
+            position: fixed;
+            top: -10px;
+            width: 10px;
+            height: 10px;
+            z-index: 9999;
+            pointer-events: none;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall { to { transform: translateY(105vh) rotate(360deg); } }
+
+        @media (max-width: 500px) {
+            .keyboard { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+            html[dir="rtl"] .keyboard { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+            
+            .dash { width: 35px; height: 45px; font-size: 1.8rem; border-bottom-width: 3px; }
+            .pos-btn { width: 40px; height: 40px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="lang-toggle-container" id="lang-container">
+        <button id="lang-toggle" class="btn lang-btn" onclick="toggleLang()">العربية</button>
+    </div>
+
+    <!-- Setup Screen -->
+    <div id="setup-screen" class="screen full-center active">
+        <h1 class="game-title">Hangman</h1>
+        <div class="card">
+            <h2 id="setup-title">Setup Game</h2>
+            <p id="setup-msg"><strong>Player A:</strong> Select the number of letters in your secret word without showing Player B.</p>
+            <div id="length-selector" class="length-selector"></div>
+            <button id="btn-start" class="btn btn-primary" disabled>Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen full-center">
+        <div class="game-top-bar">
+            <div class="wrong-counter"><span id="lbl-wrong-count">Wrong guesses:</span> <span id="wrong-count">0</span> / 6</div>
+            <div id="word-length-info"></div>
+        </div>
+
+        <div class="svg-container">
+            <svg viewBox="0 0 200 250" class="hangman-svg" id="hangman-svg">
+                <line x1="10" y1="240" x2="190" y2="240" />
+                <line x1="60" y1="240" x2="60" y2="20" />
+                <line x1="60" y1="20" x2="140" y2="20" />
+                <line x1="140" y1="20" x2="140" y2="50" />
+                <circle cx="140" cy="70" r="20" id="part-1" class="body-part" />
+                <line x1="140" y1="90" x2="140" y2="150" id="part-2" class="body-part" />
+                <line x1="140" y1="110" x2="110" y2="140" id="part-3" class="body-part" />
+                <line x1="140" y1="110" x2="170" y2="140" id="part-4" class="body-part" />
+                <line x1="140" y1="150" x2="110" y2="190" id="part-5" class="body-part" />
+                <line x1="140" y1="150" x2="170" y2="190" id="part-6" class="body-part" />
+            </svg>
+        </div>
+
+        <div id="word-display" class="word-display"></div>
+        <div id="keyboard" class="keyboard"></div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal card">
+            <h2 id="confirm-title">Letter '<span id="confirm-letter-display" style="color: var(--primary);"></span>'</h2>
+            <p id="confirm-msg"><strong>Player A:</strong> Is this letter in your secret word?</p>
+            <p id="confirm-sub" style="font-size: 0.9em;">If yes, select all the positions where it belongs.<br>If no, click 'Not in word'.</p>
+            <div id="position-buttons" class="position-buttons"></div>
+            <div class="modal-actions">
+                <button id="btn-not" class="btn btn-danger">Not in word</button>
+                <button id="btn-confirm" class="btn btn-success">Place Letter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameover-modal" class="modal-overlay">
+        <div class="modal card">
+            <h2 id="end-title" class="game-title" style="font-size: 3rem;"></h2>
+            <p id="end-message" style="font-size: 1.2rem;"></p>
+            <button id="btn-play-again" class="btn btn-primary" style="margin-top: 20px;">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const i18n = {
+            en: {
+                title: "Hangman",
+                setupTitle: "Setup Game",
+                setupMsg: "<strong>Player A:</strong> Select the number of letters in your secret word without showing Player B.",
+                startBtn: "Start Game",
+                wrongGuesses: "Wrong guesses:",
+                wordLength: "Word Length:",
+                confirmLetter: "Letter",
+                confirmMsg: "<strong>Player A:</strong> Is this letter in your secret word?",
+                confirmSub: "If yes, select all the positions where it belongs.<br>If no, click 'Not in word'.",
+                notInWordBtn: "Not in word",
+                placeLetterBtn: "Place Letter",
+                winTitle: "Player B Wins!",
+                winMsg: "Great job finding the secret word.",
+                loseTitle: "Player B Loses!",
+                loseMsg: "The Hangman logic has run its course. Player A wins!",
+                playAgainBtn: "Play Again",
+                alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                alertSelectPos: "Please select at least one position, or click 'Not in word'."
+            },
+            ar: {
+                title: "لعبة المشنقة",
+                setupTitle: "إعداد اللعبة",
+                setupMsg: "<strong>اللاعب الأول:</strong> اختر عدد حروف الكلمة السرية بدون أن يراها اللاعب الثاني.",
+                startBtn: "ابدأ اللعبة",
+                wrongGuesses: "الأخطاء:",
+                wordLength: "طول الكلمة:",
+                confirmLetter: "حرف",
+                confirmMsg: "<strong>اللاعب الأول:</strong> هل هذا الحرف في الكلمة السرية؟",
+                confirmSub: "إذا نعم، حدد جميع المواضع الصحيحة.<br>إذا لا، اضغط على 'ليس في الكلمة'.",
+                notInWordBtn: "ليس في الكلمة",
+                placeLetterBtn: "أضف الحرف",
+                winTitle: "فاز اللاعب الثاني!",
+                winMsg: "عمل رائع في إيجاد الكلمة السرية.",
+                loseTitle: "خسر اللاعب الثاني!",
+                loseMsg: "اكتمل رسم المشنقة. فاز اللاعب الأول بالمباراة!",
+                playAgainBtn: "العب مرة أخرى",
+                alphabet: "ابتثجحخدذرزسشصضطظعغفقكلمنهوي",
+                alertSelectPos: "يرجى تحديد موضع واحد على الأقل، أو النقر على 'ليس في الكلمة'."
+            }
+        };
+
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playTone(freq, type, duration, vol = 0.1) {
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e){}
+            },
+            correct() { this.init(); this.playTone(600, 'sine', 0.1); setTimeout(() => this.playTone(800, 'sine', 0.2), 100); },
+            wrong() { this.init(); this.playTone(250, 'sawtooth', 0.3); },
+            click() { this.init(); this.playTone(400, 'sine', 0.05, 0.05); }
+        };
+
+        const state = {
+            lang: 'en',
+            length: null,
+            wrongGuesses: 0,
+            maxWrong: 6,
+            letters: {},
+            board: [],
+            currentConfirm: null,
+            selectedPositions: new Set(),
+            gameOver: false // block inputs if game is over
+        };
+
+        const els = {
+            setupScreen: document.getElementById('setup-screen'),
+            gameScreen: document.getElementById('game-screen'),
+            confirmModal: document.getElementById('confirm-modal'),
+            gameoverModal: document.getElementById('gameover-modal'),
+            btnStart: document.getElementById('btn-start'),
+            lengthSelector: document.getElementById('length-selector'),
+            wordDisplay: document.getElementById('word-display'),
+            keyboard: document.getElementById('keyboard'),
+            wrongCount: document.getElementById('wrong-count'),
+            wordLengthInfo: document.getElementById('word-length-info'),
+            lblConfirmLetter: document.getElementById('confirm-letter-display'),
+            confirmTitle: document.getElementById('confirm-title'),
+            positionButtons: document.getElementById('position-buttons'),
+            btnNot: document.getElementById('btn-not'),
+            btnConfirm: document.getElementById('btn-confirm'),
+            endTitle: document.getElementById('end-title'),
+            endMessage: document.getElementById('end-message'),
+            btnPlayAgain: document.getElementById('btn-play-again'),
+            langContainer: document.getElementById('lang-container')
+        };
+
+        function toggleLang() {
+            AudioEngine.click();
+            state.lang = state.lang === 'en' ? 'ar' : 'en';
+            document.documentElement.lang = state.lang;
+            document.documentElement.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
+            document.getElementById('lang-toggle').textContent = state.lang === 'en' ? 'العربية' : 'English';
+            applyTranslations();
+        }
+
+        function applyTranslations() {
+            const t = i18n[state.lang];
+            document.querySelectorAll('.game-title').forEach(el => {
+                if (el !== els.endTitle) el.textContent = t.title;
+            });
+            document.getElementById('setup-title').textContent = t.setupTitle;
+            document.getElementById('setup-msg').innerHTML = t.setupMsg;
+            els.btnStart.textContent = t.startBtn;
+            document.getElementById('lbl-wrong-count').textContent = t.wrongGuesses;
+            document.getElementById('confirm-msg').innerHTML = t.confirmMsg;
+            document.getElementById('confirm-sub').innerHTML = t.confirmSub;
+            els.btnNot.textContent = t.notInWordBtn;
+            els.btnConfirm.textContent = t.placeLetterBtn;
+            els.btnPlayAgain.textContent = t.playAgainBtn;
+            
+            // Adjust confirm modal title
+            els.confirmTitle.childNodes[0].textContent = t.confirmLetter + " '";
+            els.confirmTitle.childNodes[2].textContent = "'";
+
+            if (state.length) els.wordLengthInfo.textContent = `${t.wordLength} ${state.length}`;
+            
+            // Re-render strings if game over
+            if (state.gameOver) {
+                const won = state.board.filter(Boolean).length === state.length;
+                if (won) {
+                    els.endTitle.textContent = t.winTitle;
+                    els.endMessage.textContent = t.winMsg;
+                } else {
+                    els.endTitle.textContent = t.loseTitle;
+                    els.endMessage.textContent = t.loseMsg;
+                }
+            }
+        }
+
+        function renderLengthSelection() {
+            els.lengthSelector.innerHTML = '';
+            for(let i = 3; i <= 12; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'len-btn';
+                btn.textContent = i;
+                btn.onclick = () => {
+                    AudioEngine.click();
+                    document.querySelectorAll('.len-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    state.length = i;
+                    els.btnStart.disabled = false;
+                };
+                els.lengthSelector.appendChild(btn);
+            }
+        }
+
+        function createKeyboard() {
+            els.keyboard.innerHTML = '';
+            const alphabet = i18n[state.lang].alphabet.split('');
+            alphabet.forEach(letter => {
+                const btn = document.createElement('button');
+                btn.className = 'key';
+                btn.textContent = letter;
+                btn.id = `key-${letter}`;
+                btn.onclick = () => handleLetterClick(letter);
+                els.keyboard.appendChild(btn);
+            });
+        }
+
+        function showScreen(screenEl) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            screenEl.classList.add('active');
+            
+            // Hide lang toggle during game
+            if (screenEl === els.gameScreen) {
+                els.langContainer.style.display = 'none';
+            } else {
+                els.langContainer.style.display = 'block';
+            }
+        }
+
+        function triggerConfetti() {
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
+            for (let i = 0; i < 150; i++) {
+                let conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                conf.style.animationDelay = Math.random() * 2 + 's';
+                document.body.appendChild(conf);
+                setTimeout(() => conf.remove(), 5000);
+            }
+        }
+
+        function renderBoard() {
+            els.wordDisplay.innerHTML = '';
+            for(let i = 0; i < state.length; i++) {
+                const dash = document.createElement('div');
+                dash.className = 'dash' + (state.board[i] ? ' filled' : '');
+                dash.textContent = state.board[i] || '';
+                els.wordDisplay.appendChild(dash);
+            }
+        }
+
+        function handleLetterClick(letter) {
+            if (state.letters[letter] || state.gameOver) return;
+            AudioEngine.click();
+            state.currentConfirm = letter;
+            openConfirmModal(letter);
+        }
+
+        function openConfirmModal(letter) {
+            els.lblConfirmLetter.textContent = letter;
+            state.selectedPositions.clear();
+            
+            els.positionButtons.innerHTML = '';
+            for(let i = 0; i < state.length; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'pos-btn';
+                if (state.board[i]) {
+                    btn.disabled = true;
+                    btn.textContent = state.board[i];
+                } else {
+                    btn.textContent = i + 1;
+                    btn.onclick = () => {
+                        AudioEngine.click();
+                        if (state.selectedPositions.has(i)) {
+                            state.selectedPositions.delete(i);
+                            btn.classList.remove('selected');
+                        } else {
+                            state.selectedPositions.add(i);
+                            btn.classList.add('selected');
+                        }
+                    };
+                }
+                els.positionButtons.appendChild(btn);
+            }
+            
+            els.confirmModal.classList.add('active');
+        }
+
+        function closeConfirmModal() {
+            els.confirmModal.classList.remove('active');
+            state.currentConfirm = null;
+        }
+
+        els.btnNot.onclick = () => {
+            AudioEngine.wrong();
+            state.letters[state.currentConfirm] = 'wrong';
+            state.wrongGuesses++;
+            updateGameUI();
+            closeConfirmModal();
+            checkGameState();
+        };
+
+        els.btnConfirm.onclick = () => {
+            if (state.selectedPositions.size === 0) {
+                alert(i18n[state.lang].alertSelectPos);
+                return;
+            }
+            AudioEngine.correct();
+            state.letters[state.currentConfirm] = 'correct';
+            state.selectedPositions.forEach(pos => {
+                state.board[pos] = state.currentConfirm;
+            });
+            updateGameUI();
+            closeConfirmModal();
+            checkGameState();
+        };
+
+        function updateGameUI() {
+            els.wrongCount.textContent = state.wrongGuesses;
+            renderBoard();
+
+            for(let i = 1; i <= state.maxWrong; i++) {
+                const part = document.getElementById(`part-${i}`);
+                if (part) {
+                    if (i <= state.wrongGuesses) part.classList.add('visible');
+                    else part.classList.remove('visible');
+                }
+            }
+
+            Object.keys(state.letters).forEach(letter => {
+                const keyBtn = document.getElementById(`key-${letter}`);
+                if (keyBtn) {
+                    keyBtn.classList.add(state.letters[letter]);
+                    keyBtn.disabled = true;
+                }
+            });
+        }
+
+        function checkGameState() {
+            const t = i18n[state.lang];
+            if (state.board.filter(Boolean).length === state.length) {
+                state.gameOver = true;
+                setTimeout(() => {
+                    els.endTitle.textContent = t.winTitle;
+                    els.endTitle.style.background = "-webkit-linear-gradient(45deg, #38b259, #8BC34A)";
+                    els.endTitle.style.webkitBackgroundClip = "text";
+                    els.endTitle.style.webkitTextFillColor = "transparent";
+                    els.endMessage.textContent = t.winMsg;
+                    els.gameoverModal.classList.add('active');
+                    triggerConfetti();
+                }, 500);
+            } else if (state.wrongGuesses >= state.maxWrong) {
+                state.gameOver = true;
+                setTimeout(() => {
+                    els.endTitle.textContent = t.loseTitle;
+                    els.endTitle.style.background = "-webkit-linear-gradient(45deg, #e53e3e, #f44336)";
+                    els.endTitle.style.webkitBackgroundClip = "text";
+                    els.endTitle.style.webkitTextFillColor = "transparent";
+                    els.endMessage.textContent = t.loseMsg;
+                    els.gameoverModal.classList.add('active');
+                    AudioEngine.wrong();
+                }, 500);
+            }
+        }
+
+        els.btnStart.onclick = () => {
+            AudioEngine.click();
+            state.wrongGuesses = 0;
+            state.letters = {};
+            state.board = new Array(state.length).fill(null);
+            state.gameOver = false;
+            
+            const t = i18n[state.lang];
+            els.wordLengthInfo.textContent = `${t.wordLength} ${state.length}`;
+            createKeyboard();
+            updateGameUI();
+            
+            showScreen(els.gameScreen);
+        };
+
+        els.btnPlayAgain.onclick = () => {
+            AudioEngine.click();
+            els.gameoverModal.classList.remove('active');
+            
+            state.length = null;
+            els.btnStart.disabled = true;
+            document.querySelectorAll('.len-btn').forEach(b => b.classList.remove('selected'));
+            
+            showScreen(els.setupScreen);
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (els.gameScreen.classList.contains('active') && 
+               !els.confirmModal.classList.contains('active') && 
+               !els.gameoverModal.classList.contains('active') &&
+               !state.gameOver) {
+                const letter = state.lang === 'en' ? e.key.toUpperCase() : e.key;
+                const alphabet = i18n[state.lang].alphabet.split('');
+                if (alphabet.includes(letter)) {
+                    const keyBtn = document.getElementById(`key-${letter}`);
+                    if (keyBtn && !keyBtn.disabled) {
+                        keyBtn.click();
+                    }
+                }
+            }
+        });
+
+        applyTranslations();
+        renderLengthSelection();
+
+    </script>
+</body>
+</html>
